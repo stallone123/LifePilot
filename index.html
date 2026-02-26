@@ -668,13 +668,66 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
 /* ═══════════════════════════════════════════
    RESPONSIVE
 ═══════════════════════════════════════════ */
+/* ═══════════════════════════════════════════
+   MOBILE BOTTOM NAV
+═══════════════════════════════════════════ */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;z-index:200;
+  background:var(--nav);border-top:1px solid var(--border);
+  padding:6px 0 env(safe-area-inset-bottom,6px);
+}
+.bnav-inner{display:flex;justify-content:space-around;align-items:center;}
+.bnav-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 8px;border-radius:4px;cursor:pointer;
+  background:none;border:none;
+  color:rgba(180,158,90,.45);transition:all .18s;
+  font-size:.5rem;letter-spacing:.08em;text-transform:uppercase;
+  font-family:'Courier Prime',monospace;min-width:48px;
+}
+.vpx1 .bnav-btn{color:rgba(155,155,170,.45);}
+.bnav-btn.on{color:var(--navtext);}
+.bnav-icon{font-size:1.35rem;line-height:1;}
+.mobile-more{
+  display:none;position:fixed;bottom:65px;left:0;right:0;z-index:199;
+  background:var(--nav);border-top:1px solid var(--border);
+  padding:10px;flex-direction:column;gap:2px;
+  box-shadow:0 -4px 20px rgba(0,0,0,.3);
+}
+.mobile-more.open{display:flex;}
+.mmore-btn{
+  display:flex;align-items:center;gap:12px;padding:12px 16px;
+  border-radius:4px;background:none;border:none;cursor:pointer;
+  color:var(--navtext);font-family:'Karla',sans-serif;
+  font-size:.88rem;width:100%;text-align:left;transition:background .18s;
+}
+.mmore-btn:active{background:var(--navact);}
+.mmore-icon{font-size:1.1rem;width:20px;text-align:center;}
+.mmore-close{
+  text-align:center;padding:10px;font-family:'Courier Prime',monospace;
+  font-size:.62rem;letter-spacing:.1em;color:var(--text3);
+  border-top:1px solid var(--border);margin-top:4px;cursor:pointer;
+  text-transform:uppercase;
+}
+
 @media(max-width:720px){
   .shell{grid-template-columns:1fr;}
   .sidebar{display:none;}
-  .main{padding:20px;}
+  .bottom-nav{display:block;}
+  .main{padding:16px 16px 80px;max-height:calc(100vh - 56px);}
   .stats{grid-template-columns:1fr 1fr;}
   .bk-grid{grid-template-columns:1fr;}
   .focus-grid{grid-template-columns:1fr;}
+  .goals-grid{grid-template-columns:1fr;}
+  .vision-grid{grid-template-columns:1fr 1fr;}
+  .ptitle{font-size:1.9rem;}
+  .ph{flex-direction:column;gap:8px;}
+  .pacts{width:100%;}
+  .topbar-date{display:none;}
+  .sign-box{padding:36px 26px;}
+  .sign-title{font-size:3rem;}
+  .modal{padding:22px;}
 }
 </style>
 </head>
@@ -991,6 +1044,35 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
     </div><!-- /main -->
   </div><!-- /shell -->
 </div><!-- /app -->
+
+<!-- ═══════════════ MOBILE BOTTOM NAV ═══════════════ -->
+<div class="bottom-nav" id="bottom-nav">
+  <div class="bnav-inner">
+    <button class="bnav-btn on" data-pg="today" onclick="go('today')">
+      <span class="bnav-icon">⚡</span>Today
+    </button>
+    <button class="bnav-btn" data-pg="goals" onclick="go('goals')">
+      <span class="bnav-icon">🎯</span>Goals
+    </button>
+    <button class="bnav-btn" data-pg="journal" onclick="go('journal')">
+      <span class="bnav-icon">📓</span>Journal
+    </button>
+    <button class="bnav-btn" data-pg="habits" onclick="go('habits')">
+      <span class="bnav-icon">🔁</span>Habits
+    </button>
+    <button class="bnav-btn" onclick="toggleMore()">
+      <span class="bnav-icon">⋯</span>More
+    </button>
+  </div>
+</div>
+
+<!-- More menu (mobile) -->
+<div class="mobile-more" id="mobile-more">
+  <button class="mmore-btn" onclick="go('vision');toggleMore()"><span class="mmore-icon">🌄</span>Vision Board</button>
+  <button class="mmore-btn" onclick="go('calendar');toggleMore()"><span class="mmore-icon">📅</span>Calendar</button>
+  <button class="mmore-btn" onclick="go('backup');toggleMore()"><span class="mmore-icon">☁️</span>Backup</button>
+  <div class="mmore-close" onclick="toggleMore()">✕ Close</div>
+</div>
 
 <!-- ═══════════════ MODALS ═══════════════ -->
 
@@ -1367,10 +1449,31 @@ function seedDemo(){
 function go(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nbtn').forEach(n=>n.classList.remove('on'));
+  document.querySelectorAll('.bnav-btn').forEach(n=>n.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
-  document.querySelector(`[data-pg="${id}"]`).classList.add('on');
+  // sync sidebar
+  const sb = document.querySelector(`.nbtn[data-pg="${id}"]`);
+  if(sb) sb.classList.add('on');
+  // sync bottom nav
+  const bn = document.querySelector(`.bnav-btn[data-pg="${id}"]`);
+  if(bn) bn.classList.add('on');
   renderAll();
 }
+
+function toggleMore(){
+  const m = document.getElementById('mobile-more');
+  m.classList.toggle('open');
+}
+
+// close more menu when tapping outside
+document.addEventListener('click', e=>{
+  const more = document.getElementById('mobile-more');
+  if(more && more.classList.contains('open')){
+    if(!more.contains(e.target) && !e.target.closest('.bnav-btn')){
+      more.classList.remove('open');
+    }
+  }
+});
 
 // ═══════════════════════════════════════════
 // RENDER ALL
