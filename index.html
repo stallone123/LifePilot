@@ -244,13 +244,33 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   background:rgba(212,168,58,.16);color:var(--gold2);padding:1px 6px;border-radius:2px;
 }
 .vpx1 .nbadge{background:rgba(192,192,212,.1);}
+.sync-ind{
+  font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.1em;
+  color:var(--text3);padding:3px 8px;border-radius:3px;
+  transition:all .3s;white-space:nowrap;
+}
+.sync-saving{color:var(--gold2);animation:pulse 1s infinite;}
+.sync-saved{color:var(--success);}
+.sync-error{color:var(--red);background:var(--redlt);}
+.sync-loading{color:var(--gold2);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .sfooter{
   margin-top:auto;padding:10px 8px;
   font-family:'Courier Prime',monospace;font-size:.55rem;
   letter-spacing:.1em;text-transform:uppercase;
   color:rgba(140,120,70,.35);
 }
-.vpx1 .sfooter{color:rgba(120,120,135,.3);}
+.vpx1 .sync-ind{
+  font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.1em;
+  color:var(--text3);padding:3px 8px;border-radius:3px;
+  transition:all .3s;white-space:nowrap;
+}
+.sync-saving{color:var(--gold2);animation:pulse 1s infinite;}
+.sync-saved{color:var(--success);}
+.sync-error{color:var(--red);background:var(--redlt);}
+.sync-loading{color:var(--gold2);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.sfooter{color:rgba(120,120,135,.3);}
 
 /* Main */
 .main{
@@ -789,6 +809,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
   <div class="topbar">
     <div class="topbar-logo">Life<span>Pilot</span></div>
     <div class="topbar-date" id="tdate"></div>
+  <span class="sync-ind" id="sync-indicator"></span>
     <div style="flex:1"></div>
     <div class="mtoggle">
       <button class="mtbtn on" id="mt-p" onclick="setMode('personal')">⚙ Personal</button>
@@ -1296,12 +1317,139 @@ function tickDate(){
 }
 
 // ═══════════════════════════════════════════
-// STORAGE
+// STORAGE — localStorage + auto Drive sync
 // ═══════════════════════════════════════════
-function save(){localStorage.setItem('lifepilot2',JSON.stringify(S));}
+const DRIVE_FILENAME = 'lifepilot-sync.json';
+let driveFileId  = null;   // cached file ID of the sync file on Drive
+let syncTimer    = null;   // debounce timer for auto-sync
+let syncPending  = false;  // true while a Drive write is in flight
+let lastSyncTime = null;   // timestamp of last successful sync
+
+// Save to localStorage immediately, then schedule Drive sync
+function save(){
+  localStorage.setItem('lifepilot2', JSON.stringify(S));
+  if(!demo && token) scheduleDriveSync();
+}
+
 function load(){
-  const r=localStorage.getItem('lifepilot2');
-  if(r){try{const d=JSON.parse(r);S={...S,...d,vision:{...S.vision,...(d.vision||{})},settings:{...S.settings,...(d.settings||{})}};}catch(e){}}
+  const r = localStorage.getItem('lifepilot2');
+  if(r){
+    try{
+      const d = JSON.parse(r);
+      S = {...S,...d, vision:{...S.vision,...(d.vision||{})}, settings:{...S.settings,...(d.settings||{})}};
+    }catch(e){}
+  }
+}
+
+// Debounce — wait 2s after last change before writing to Drive
+function scheduleDriveSync(){
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(()=> driveAutoSave(), 2000);
+}
+
+// Write current state to the single sync file on Drive
+function driveAutoSave(){
+  if(!token || demo || syncPending) return;
+  syncPending = true;
+  setSyncIndicator('saving');
+  const json = buildJSON();
+
+  const doUpload = (fileId) => {
+    const url = fileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`
+      : null;
+
+    if(fileId){
+      // Update existing file
+      fetch(url, {
+        method:'PATCH',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body: json
+      })
+      .then(r=>r.json())
+      .then(d=>{
+        syncPending = false;
+        if(d.id){ lastSyncTime=new Date(); setSyncIndicator('saved'); }
+        else{ setSyncIndicator('error'); }
+      })
+      .catch(()=>{ syncPending=false; setSyncIndicator('error'); });
+    } else {
+      // Create new file
+      const meta = JSON.stringify({name: DRIVE_FILENAME, mimeType:'application/json'});
+      const bnd  = '===lpsync===';
+      const body = `--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${bnd}\r\nContent-Type: application/json\r\n\r\n${json}\r\n--${bnd}--`;
+      fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':`multipart/related; boundary=${bnd}`},
+        body
+      })
+      .then(r=>r.json())
+      .then(d=>{
+        syncPending = false;
+        if(d.id){ driveFileId=d.id; lastSyncTime=new Date(); setSyncIndicator('saved'); }
+        else{ setSyncIndicator('error'); }
+      })
+      .catch(()=>{ syncPending=false; setSyncIndicator('error'); });
+    }
+  };
+
+  if(driveFileId){ doUpload(driveFileId); return; }
+
+  // Find existing sync file first
+  const q = encodeURIComponent(`name='${DRIVE_FILENAME}' and mimeType='application/json' and trashed=false`);
+  fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&pageSize=1`,{
+    headers:{Authorization:'Bearer '+token}
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.files && d.files.length>0){ driveFileId=d.files[0].id; doUpload(driveFileId); }
+    else{ doUpload(null); }
+  })
+  .catch(()=>{ syncPending=false; setSyncIndicator('error'); });
+}
+
+// On sign-in: load from Drive first, then launch
+function driveAutoLoad(cb){
+  if(!token){ cb(); return; }
+  setSyncIndicator('loading');
+  const q = encodeURIComponent(`name='${DRIVE_FILENAME}' and mimeType='application/json' and trashed=false`);
+  fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&pageSize=1`,{
+    headers:{Authorization:'Bearer '+token}
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(!d.files || d.files.length===0){ setSyncIndicator('idle'); cb(); return; }
+    driveFileId = d.files[0].id;
+    return fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`,{
+      headers:{Authorization:'Bearer '+token}
+    });
+  })
+  .then(r=>r && r.json())
+  .then(d=>{
+    if(!d){ setSyncIndicator('idle'); cb(); return; }
+    // Merge Drive data — Drive wins over localStorage for content
+    if(d.tasks)    S.tasks    = d.tasks;
+    if(d.goals)    S.goals    = d.goals;
+    if(d.routines) S.routines = d.routines;
+    if(d.journal)  S.journal  = d.journal;
+    if(d.vision)   S.vision   = {...S.vision,...d.vision};
+    // Preserve local settings (mode, clientId, etc)
+    localStorage.setItem('lifepilot2', JSON.stringify(S));
+    lastSyncTime = new Date();
+    setSyncIndicator('saved');
+    cb();
+  })
+  .catch(()=>{ setSyncIndicator('idle'); cb(); });
+}
+
+// Sync status indicator in topbar
+function setSyncIndicator(state){
+  const el = document.getElementById('sync-indicator');
+  if(!el) return;
+  const icons = {saving:'⟳', saved:'✓', error:'!', loading:'⟳', idle:''};
+  const labels = {saving:'Syncing…', saved:'Synced', error:'Sync error', loading:'Loading…', idle:''};
+  el.textContent = (icons[state]||'') + ' ' + (labels[state]||'');
+  el.className = 'sync-ind sync-'+state;
 }
 
 // ═══════════════════════════════════════════
@@ -1362,8 +1510,11 @@ function onToken(r){
       S.settings.userName   = u.name||'Pilot';
       S.settings.userAvatar = u.picture||'';
       save();
-      launchApp(false);
-    }).catch(()=>launchApp(false));
+      // Load latest data from Drive before showing app
+      driveAutoLoad(()=>launchApp(false));
+    }).catch(()=>{
+      driveAutoLoad(()=>launchApp(false));
+    });
 }
 
 function demoLaunch(){
@@ -1976,43 +2127,34 @@ function uploadBackup(){
     if(demo){bklog('Demo: Drive upload simulated.','ok');toast('Demo: Backup simulated.','ok');return;}
     toast('Sign in with Google first.','err');return;
   }
-  bklog('Uploading to Google Drive…','info');
+  bklog('Forcing sync to Google Drive…','info');
+  clearTimeout(syncTimer);
+  driveFileId=null; // force fresh search
+  driveAutoSave();
+  // Also save a dated snapshot backup
   const json=buildJSON();
-  const fname='lifepilot-'+new Date().toISOString().slice(0,10)+'.json';
+  const fname='lifepilot-backup-'+new Date().toISOString().slice(0,10)+'.json';
   const meta=JSON.stringify({name:fname,mimeType:'application/json'});
-  const bnd='===lp===';
+  const bnd='===lp2===';
   const body=`--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${bnd}\r\nContent-Type: application/json\r\n\r\n${json}\r\n--${bnd}--`;
   fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
     method:'POST',
     headers:{'Authorization':'Bearer '+token,'Content-Type':`multipart/related; boundary=${bnd}`},
     body
   }).then(r=>r.json()).then(d=>{
-    if(d.id){bklog('Uploaded: '+d.name,'ok');toast('Backup saved to Drive.','ok');}
-    else{bklog('Error: '+(d.error?.message||'Unknown'),'err');}
+    if(d.id){bklog('Snapshot saved: '+d.name,'ok');toast('✓ Synced + snapshot saved to Drive.','ok');}
+    else{bklog('Snapshot error: '+(d.error?.message||'Unknown'),'err');}
   }).catch(err=>bklog('Error: '+err.message,'err'));
 }
 function downloadBackup(){
   if(!token){toast('Sign in with Google first.','err');return;}
-  bklog('Searching Drive for latest backup…','info');
-  const q=encodeURIComponent("name contains 'lifepilot' and mimeType='application/json' and trashed=false");
-  fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime+desc&pageSize=5`,{headers:{Authorization:'Bearer '+token}})
-    .then(r=>r.json())
-    .then(d=>{
-      if(!d.files?.length){bklog('No backups found on Drive.','err');return;}
-      bklog('Found: '+d.files[0].name,'info');
-      return fetch(`https://www.googleapis.com/drive/v3/files/${d.files[0].id}?alt=media`,{headers:{Authorization:'Bearer '+token}});
-    })
-    .then(r=>r&&r.json())
-    .then(d=>{
-      if(!d)return;
-      if(d.tasks)    S.tasks=d.tasks;
-      if(d.goals)    S.goals=d.goals;
-      if(d.routines) S.routines=d.routines;
-      if(d.journal)  S.journal=d.journal;
-      if(d.vision)   S.vision=d.vision;
-      save();renderAll();bklog('Restore complete.','ok');toast('Data restored from Drive.','ok');
-    })
-    .catch(err=>bklog('Error: '+err.message,'err'));
+  bklog('Loading latest sync from Drive…','info');
+  driveFileId=null; // force fresh search
+  driveAutoLoad(()=>{
+    renderAll();
+    bklog('Restore complete. Last sync: '+(lastSyncTime?lastSyncTime.toLocaleTimeString():'unknown'),'ok');
+    toast('✓ Data loaded from Drive.','ok');
+  });
 }
 
 // ═══════════════════════════════════════════
