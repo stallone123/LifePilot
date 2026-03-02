@@ -808,6 +808,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
 
   <div class="topbar">
     <div class="topbar-logo">Life<span>Pilot</span></div>
+  <span id="mode-label" style="font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:3px;background:rgba(184,146,42,.15);color:var(--gold2);flex-shrink:0">⚙ Personal</span>
     <div class="topbar-date" id="tdate"></div>
   <span class="sync-ind" id="sync-indicator"></span>
     <div style="flex:1"></div>
@@ -896,15 +897,9 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
             <div class="ctitle">🔥 One Lever Focus</div>
             <div style="font-size:.7rem;color:var(--text3);font-style:italic">The single most important move today</div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div>
-              <label class="flbl">Mining / VPX1</label>
-              <textarea class="field" id="lever-mining" rows="3" placeholder="e.g. Finalize investor deck section 3…"></textarea>
-            </div>
-            <div>
-              <label class="flbl">Platform / VBay</label>
-              <textarea class="field" id="lever-platform" rows="3" placeholder="e.g. Ship work package portal MVP…"></textarea>
-            </div>
+          <div>
+            <label class="flbl" id="lever-label">Today's single most important move</label>
+            <textarea class="field" id="lever-focus" rows="3" placeholder="What is the one thing that, if done today, makes everything else easier or unnecessary?"></textarea>
           </div>
           <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="saveLever()">Save Focus</button>
           <span id="lever-saved" style="font-size:.72rem;color:var(--success);margin-left:10px;display:none">✓ Saved</span>
@@ -1219,25 +1214,53 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
+// ── Workspace factory — creates a clean independent workspace ──
+function newWorkspace(isVpx1){
+  if(isVpx1) return {
+    tasks:[], goals:[], routines:[], journal:[],
+    vision:{
+      quote:'VPX1 Jordan River — from discovery to production.',
+      areas:[
+        {icon:'⛏',title:'Resource Development',affirm:'VPX1 is advancing methodically toward drill-ready status.'},
+        {icon:'📊',title:'Investor Relations',affirm:'We communicate clearly and build trust with every update.'},
+        {icon:'💻',title:'VBay Platform',affirm:'VBay eliminates information asymmetry in mining finance.'},
+        {icon:'📋',title:'Regulatory & NI 43-101',affirm:'All data has verifiable on-chain provenance.'},
+        {icon:'🤝',title:'Community Value',affirm:'We create prosperity ecosystems for all participants.'},
+        {icon:'🎯',title:'Summer 2026 Drill Program',affirm:'Contractors selected, permits filed, program ready.'},
+      ]
+    },
+    energy:null,
+    lever:'',
+    streak:0, lastDate:'',
+  };
+  return {
+    tasks:[], goals:[], routines:[], journal:[],
+    vision:{
+      quote:'You are not managing a life. You are building a legacy.',
+      areas:[
+        {icon:'👨‍👧',title:'Present Father',affirm:'I am fully present and joyful with my children.'},
+        {icon:'💪',title:'Energy & Health',affirm:'I protect my energy — it is my greatest resource.'},
+        {icon:'🌱',title:'Personal Growth',affirm:'Every day I am wiser, calmer, and more purposeful.'},
+        {icon:'🤝',title:'Relationships',affirm:'I invest in the people who matter most.'},
+        {icon:'📚',title:'Learning & Wisdom',affirm:'I read, reflect, and grow every week.'},
+        {icon:'✨',title:'Joy & Recovery',affirm:'Rest is not a reward — it is the strategy.'},
+      ]
+    },
+    energy:null,
+    lever:'',
+    streak:0, lastDate:'',
+  };
+}
+
 let S = {
-  mode:     'personal',
-  tasks:    [],
-  goals:    [],
-  routines: [],
-  journal:  [],
-  vision: {
-    quote: 'You are not managing a life. You are building a legacy.',
-    areas: [
-      {icon:'⛏',title:'Mining Legacy',affirm:'VPX1 Jordan River is advancing toward production.'},
-      {icon:'💻',title:'VBay Platform',affirm:'VBay democratises mining investment for all.'},
-      {icon:'👨‍👧',title:'Present Father',affirm:'I am fully present and joyful with my children.'},
-      {icon:'💪',title:'Energy & Health',affirm:'I protect my energy — it is my greatest resource.'},
-      {icon:'🌱',title:'Personal Growth',affirm:'Every day I am wiser, calmer, and more purposeful.'},
-      {icon:'🤝',title:'Community',affirm:'I create prosperity ecosystems that benefit all.'},
-    ]
-  },
-  settings: {clientId:'',userName:'',userAvatar:'',streak:0,lastDate:'',energyToday:null,leverMining:'',leverPlatform:''},
+  mode: 'personal',
+  personal: newWorkspace(false),
+  vpx1:     newWorkspace(true),
+  settings: {clientId:'',userName:'',userAvatar:''},
 };
+
+// ── Helper: get the active workspace ──
+function W(){ return S[S.mode]; }
 let token = null;
 let demo  = false;
 let mood  = '';
@@ -1308,10 +1331,10 @@ function tickDate(){
 
   // streak
   const today = d.toISOString().slice(0,10);
-  if(S.settings.lastDate !== today){
+  if(W().lastDate !== today){
     const yest = new Date(d-86400000).toISOString().slice(0,10);
-    S.settings.streak = S.settings.lastDate===yest ? (S.settings.streak||0)+1 : 1;
-    S.settings.lastDate = today;
+    W().streak = W().lastDate===yest ? (W().streak||0)+1 : 1;
+    W().lastDate = today;
     save();
   }
 }
@@ -1336,7 +1359,15 @@ function load(){
   if(r){
     try{
       const d = JSON.parse(r);
-      S = {...S,...d, vision:{...S.vision,...(d.vision||{})}, settings:{...S.settings,...(d.settings||{})}};
+      S.mode = d.mode || 'personal';
+      S.settings = {...S.settings,...(d.settings||{})};
+      if(d.personal) S.personal = {...newWorkspace(false),...d.personal, vision:{...newWorkspace(false).vision,...(d.personal.vision||{})}};
+      if(d.vpx1)     S.vpx1     = {...newWorkspace(true),...d.vpx1,     vision:{...newWorkspace(true).vision,...(d.vpx1.vision||{})}};
+      // Migrate old flat data into personal workspace if upgrading
+      if(d.tasks && !d.personal)    S.personal.tasks    = d.tasks;
+      if(d.goals && !d.personal)    S.personal.goals    = d.goals;
+      if(d.routines && !d.personal) S.personal.routines = d.routines;
+      if(d.journal && !d.personal)  S.personal.journal  = d.journal;
     }catch(e){}
   }
 }
@@ -1428,12 +1459,14 @@ function driveAutoLoad(cb){
   .then(d=>{
     if(!d){ setSyncIndicator('idle'); cb(); return; }
     // Merge Drive data — Drive wins over localStorage for content
-    if(d.tasks)    S.tasks    = d.tasks;
-    if(d.goals)    S.goals    = d.goals;
-    if(d.routines) S.routines = d.routines;
-    if(d.journal)  S.journal  = d.journal;
-    if(d.vision)   S.vision   = {...S.vision,...d.vision};
-    // Preserve local settings (mode, clientId, etc)
+    if(d.personal) S.personal = {...newWorkspace(false),...d.personal, vision:{...newWorkspace(false).vision,...(d.personal.vision||{})}};
+    if(d.vpx1)     S.vpx1     = {...newWorkspace(true),...d.vpx1,     vision:{...newWorkspace(true).vision,...(d.vpx1.vision||{})}};
+    // Migrate old flat data if upgrading
+    if(d.tasks && !d.personal)    S.personal.tasks    = d.tasks;
+    if(d.goals && !d.personal)    S.personal.goals    = d.goals;
+    if(d.routines && !d.personal) S.personal.routines = d.routines;
+    if(d.journal && !d.personal)  S.personal.journal  = d.journal;
+    // Preserve local settings
     localStorage.setItem('lifepilot2', JSON.stringify(S));
     lastSyncTime = new Date();
     setSyncIndicator('saved');
@@ -1470,6 +1503,45 @@ function setMode(m){
   applyMode(m);
   document.getElementById('mt-p').classList.toggle('on', m==='personal');
   document.getElementById('mt-v').classList.toggle('on', m==='vpx1');
+  // Update mode label badge
+  updateModeLabel();
+  // Restore workspace-specific UI fields
+  restoreWorkspaceUI();
+  // Re-render all data from new workspace
+  renderAll();
+  updateCalStatus();
+}
+
+function updateModeLabel(){
+  const lbl = document.getElementById('mode-label');
+  if(!lbl) return;
+  if(S.mode==='personal'){
+    lbl.textContent='⚙ Personal';
+    lbl.style.background='rgba(184,146,42,0.15)';
+    lbl.style.color='var(--gold2)';
+  } else {
+    lbl.textContent='◈ VPX1 · Jordan River';
+    lbl.style.background='rgba(192,192,212,0.1)';
+    lbl.style.color='var(--gold2)';
+  }
+}
+
+function restoreWorkspaceUI(){
+  const w = W();
+  // Lever / One Focus
+  const lev = document.getElementById('lever-focus');
+  if(lev) lev.value = w.lever||'';
+  // Lever label
+  const ll = document.getElementById('lever-label');
+  if(ll) ll.textContent = S.mode==='vpx1'
+    ? 'VPX1 — single most important project move today'
+    : 'Personal — single most important life move today';
+  // Lever placeholder
+  if(lev) lev.placeholder = S.mode==='vpx1'
+    ? 'e.g. Send updated geophysics summary to lead investor…'
+    : 'e.g. Book Sunday recovery block and protect it…';
+  // Energy
+  renderEnergy(w.energy);
 }
 
 function applyMode(m){
@@ -1539,14 +1611,8 @@ function launchApp(isDemo){
     av.src=S.settings.userAvatar; av.style.display='block';
   }
 
-  // restore lever text
-  if(S.settings.leverMining)    document.getElementById('lever-mining').value    = S.settings.leverMining;
-  if(S.settings.leverPlatform)  document.getElementById('lever-platform').value  = S.settings.leverPlatform;
-
-  // restore energy
-  if(S.settings.energyToday !== null) renderEnergy(S.settings.energyToday);
-  else renderEnergy(null);
-
+  updateModeLabel();
+  restoreWorkspaceUI();
   renderAll();
   updateCalStatus();
 }
@@ -1672,7 +1738,7 @@ function renderEnergy(val){
   if(st) st.style.setProperty('--pct', val?(val/10):0);
 }
 function setEnergy(v){
-  S.settings.energyToday=v;
+  W().energy=v;
   save();
   renderEnergy(v);
   toast('Energy logged: '+v+'/10 '+ENERGY_MSGS[v],'ok');
@@ -1685,7 +1751,7 @@ function renderTasks(){
   const today = new Date().toISOString().slice(0,10);
   const list  = document.getElementById('today-list');
   if(!list) return;
-  const tasks = S.tasks.filter(t=>t.date===today);
+  const tasks = W().tasks.filter(t=>t.date===today);
   list.innerHTML='';
   if(!tasks.length){list.innerHTML='<li class="empty-msg">No tasks yet — add one below.</li>';return;}
   tasks.forEach(t=>{
@@ -1707,26 +1773,26 @@ function renderTasks(){
   const pending = tasks.filter(t=>!t.done).length;
   document.getElementById('b-today').textContent = pending||'';
 }
-function toggleTask(id){const t=S.tasks.find(x=>x.id===id);if(t){t.done=!t.done;save();renderTasks();updateStats();}}
-function delTask(id){S.tasks=S.tasks.filter(x=>x.id!==id);save();renderTasks();updateStats();}
+function toggleTask(id){const t=W().tasks.find(x=>x.id===id);if(t){t.done=!t.done;save();renderTasks();updateStats();}}
+function delTask(id){W().tasks=W().tasks.filter(x=>x.id!==id);save();renderTasks();updateStats();}
 function qadd(){
   const f=document.getElementById('qt'); const v=f.value.trim(); if(!v)return;
   const today=new Date().toISOString().slice(0,10);
-  S.tasks.push({id:uid(),title:v,done:false,date:today,time:'',pri:'m',notes:''});
+  W().tasks.push({id:uid(),title:v,done:false,date:today,time:'',pri:'m',notes:''});
   f.value='';save();renderTasks();updateStats();
 }
 function addTask(){
   const title=document.getElementById('nt-title').value.trim();
   if(!title){toast('Enter a task title.','err');return;}
   const today=new Date().toISOString().slice(0,10);
-  S.tasks.push({id:uid(),title,done:false,date:today,time:document.getElementById('nt-time').value,pri:document.getElementById('nt-pri').value,notes:document.getElementById('nt-notes').value.trim()});
+  W().tasks.push({id:uid(),title,done:false,date:today,time:document.getElementById('nt-time').value,pri:document.getElementById('nt-pri').value,notes:document.getElementById('nt-notes').value.trim()});
   closeModal('add-task-modal');
   ['nt-title','nt-time','nt-notes'].forEach(i=>document.getElementById(i).value='');
   save();renderTasks();updateStats();toast('Task added.','ok');
 }
 function resetDay(){
   const today=new Date().toISOString().slice(0,10);
-  S.tasks.filter(t=>t.date===today).forEach(t=>t.done=false);
+  W().tasks.filter(t=>t.date===today).forEach(t=>t.done=false);
   save();renderTasks();updateStats();toast('Day reset.','ok');
 }
 
@@ -1743,7 +1809,7 @@ function gfilter(f,btn){
 function renderGoals(){
   const grid=document.getElementById('goals-grid');
   if(!grid)return;
-  let goals=S.goals;
+  let goals=W().goals;
   if(gf!=='all') goals=goals.filter(g=>g.status===gf);
   grid.innerHTML='';
   if(!goals.length){grid.innerHTML='<div class="empty-msg" style="grid-column:1/-1">No goals in this category.</div>';return;}
@@ -1774,13 +1840,13 @@ function renderGoals(){
 function addGoal(){
   const title=document.getElementById('ng-title').value.trim();
   if(!title){toast('Enter a goal title.','err');return;}
-  S.goals.push({id:uid(),title,cat:document.getElementById('ng-cat').value,status:'active',progress:0,date:document.getElementById('ng-date').value,notes:document.getElementById('ng-notes').value.trim()});
+  W().goals.push({id:uid(),title,cat:document.getElementById('ng-cat').value,status:'active',progress:0,date:document.getElementById('ng-date').value,notes:document.getElementById('ng-notes').value.trim()});
   closeModal('add-goal-modal');
   ['ng-title','ng-date','ng-notes'].forEach(i=>document.getElementById(i).value='');
   save();renderGoals();updateStats();toast('Goal created.','ok');
 }
 function openEditGoal(id){
-  const g=S.goals.find(x=>x.id===id);if(!g)return;
+  const g=W().goals.find(x=>x.id===id);if(!g)return;
   document.getElementById('eg-id').value=id;
   document.getElementById('eg-pct').value=g.progress||0;
   document.getElementById('eg-pv').textContent=(g.progress||0)+'%';
@@ -1790,7 +1856,7 @@ function openEditGoal(id){
 }
 function saveGoal(){
   const id=document.getElementById('eg-id').value;
-  const g=S.goals.find(x=>x.id===id);if(!g)return;
+  const g=W().goals.find(x=>x.id===id);if(!g)return;
   g.progress=parseInt(document.getElementById('eg-pct').value);
   g.status=document.getElementById('eg-status').value;
   g.notes=document.getElementById('eg-notes').value.trim();
@@ -1798,7 +1864,7 @@ function saveGoal(){
 }
 function deleteGoal(){
   const id=document.getElementById('eg-id').value;
-  S.goals=S.goals.filter(x=>x.id!==id);
+  W().goals=W().goals.filter(x=>x.id!==id);
   closeModal('edit-goal-modal');save();renderGoals();updateStats();toast('Goal deleted.','ok');
 }
 
@@ -1807,11 +1873,11 @@ function deleteGoal(){
 // ═══════════════════════════════════════════
 function renderVision(){
   const q=document.getElementById('vision-quote');
-  if(q) q.textContent='"'+S.vision.quote+'"';
+  if(q) q.textContent='"'+W().vision.quote+'"';
   const grid=document.getElementById('vision-grid');
   if(!grid)return;
   grid.innerHTML='';
-  S.vision.areas.forEach(a=>{
+  W().vision.areas.forEach(a=>{
     const d=document.createElement('div');
     d.className='vtile';
     d.innerHTML=`<div class="vicon">${a.icon}</div><div class="vtitle">${esc(a.title)}</div><div class="vaff${a.affirm?'':' empty'}">${esc(a.affirm||'Click Edit Vision to add your affirmation…')}</div>`;
@@ -1819,10 +1885,10 @@ function renderVision(){
   });
 }
 function openVisionEditor(){
-  document.getElementById('v-quote').value=S.vision.quote;
+  document.getElementById('v-quote').value=W().vision.quote;
   const f=document.getElementById('v-areas-form');
   f.innerHTML='';
-  S.vision.areas.forEach((a,i)=>{
+  W().vision.areas.forEach((a,i)=>{
     const d=document.createElement('div');
     d.className='fg';
     d.innerHTML=`<label class="flbl">${a.icon} ${a.title}</label><textarea class="field" id="va-${i}" rows="2">${esc(a.affirm)}</textarea>`;
@@ -1831,8 +1897,8 @@ function openVisionEditor(){
   openModal('vision-modal');
 }
 function saveVision(){
-  S.vision.quote=document.getElementById('v-quote').value.trim()||S.vision.quote;
-  S.vision.areas.forEach((a,i)=>{
+  W().vision.quote=document.getElementById('v-quote').value.trim()||W().vision.quote;
+  W().vision.areas.forEach((a,i)=>{
     const el=document.getElementById('va-'+i);
     if(el) a.affirm=el.value.trim();
   });
@@ -1852,7 +1918,7 @@ function rfilter(f,btn){
 function renderRoutines(){
   const list=document.getElementById('routines-list');
   if(!list)return;
-  let routines=S.routines;
+  let routines=W().routines;
   if(rf!=='all') routines=routines.filter(r=>r.type===rf);
   list.innerHTML='';
   if(!routines.length){list.innerHTML='<div class="empty-msg">No routines yet — create one.</div>';return;}
@@ -1883,12 +1949,12 @@ function renderRoutines(){
 }
 function isHabitDone(rid,task,day){
   const key=`h_${rid}_${task}_${day}`;
-  return (S.habits||{})[key];
+  return (W().habits||{})[key];
 }
 function toggleHabit(rid,task,day){
-  if(!S.habits) S.habits={};
+  if(!W().habits) W().habits={};
   const key=`h_${rid}_${task}_${day}`;
-  S.habits[key]=!S.habits[key];
+  W().habits[key]=!W().habits[key];
   save();renderRoutines();
 }
 function addRoutine(){
@@ -1897,23 +1963,23 @@ function addRoutine(){
   const raw=document.getElementById('nr-tasks').value;
   const tasks=raw.split('\n').map(l=>l.trim()).filter(Boolean);
   if(!tasks.length){toast('Add at least one habit/task.','err');return;}
-  S.routines.push({id:uid(),name,type:document.getElementById('nr-type').value,tasks});
+  W().routines.push({id:uid(),name,type:document.getElementById('nr-type').value,tasks});
   closeModal('add-routine-modal');
   ['nr-name','nr-tasks'].forEach(i=>document.getElementById(i).value='');
   save();renderRoutines();toast('Routine created.','ok');
 }
 function delRoutine(id){
-  S.routines=S.routines.filter(x=>x.id!==id);
+  W().routines=W().routines.filter(x=>x.id!==id);
   save();renderRoutines();toast('Routine deleted.','ok');
 }
 function applyRoutine(id){
-  const r=S.routines.find(x=>x.id===id);if(!r)return;
+  const r=W().routines.find(x=>x.id===id);if(!r)return;
   const today=new Date().toISOString().slice(0,10);
-  const existing=S.tasks.filter(t=>t.date===today).map(t=>t.title.toLowerCase());
+  const existing=W().tasks.filter(t=>t.date===today).map(t=>t.title.toLowerCase());
   let added=0;
   r.tasks.forEach(t=>{
     if(!existing.includes(t.toLowerCase())){
-      S.tasks.push({id:uid(),title:t,done:false,date:today,time:'',pri:'m',notes:''});
+      W().tasks.push({id:uid(),title:t,done:false,date:today,time:'',pri:'m',notes:''});
       added++;
     }
   });
@@ -1938,7 +2004,7 @@ function saveEntry(){
   const text=document.getElementById('j-text').value.trim();
   if(!text){toast('Write something first.','err');return;}
   const done=document.getElementById('j-done').value.trim();
-  S.journal.unshift({id:uid(),date:new Date().toISOString(),text,mood,done,prompt:PROMPTS[promptIdx]});
+  W().journal.unshift({id:uid(),date:new Date().toISOString(),text,mood,done,prompt:PROMPTS[promptIdx]});
   document.getElementById('j-text').value='';
   document.getElementById('j-done').value='';
   mood='';
@@ -1949,8 +2015,8 @@ function renderJournal(){
   const el=document.getElementById('j-entries');
   if(!el)return;
   el.innerHTML='';
-  if(!S.journal.length){el.innerHTML='<div class="empty-msg">No entries yet. Begin writing above.</div>';return;}
-  S.journal.slice(0,20).forEach(e=>{
+  if(!W().journal.length){el.innerHTML='<div class="empty-msg">No entries yet. Begin writing above.</div>';return;}
+  W().journal.slice(0,20).forEach(e=>{
     const d=new Date(e.date);
     const ds=d.toLocaleDateString('en-CA',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
     const div=document.createElement('div');
@@ -1969,7 +2035,7 @@ function renderJournal(){
   });
 }
 function delEntry(id){
-  S.journal=S.journal.filter(x=>x.id!==id);
+  W().journal=W().journal.filter(x=>x.id!==id);
   save();renderJournal();toast('Entry deleted.','ok');
 }
 
@@ -1978,11 +2044,11 @@ function delEntry(id){
 // ═══════════════════════════════════════════
 function updateStats(){
   const today=new Date().toISOString().slice(0,10);
-  const todayT=S.tasks.filter(t=>t.date===today);
+  const todayT=W().tasks.filter(t=>t.date===today);
   const done=todayT.filter(t=>t.done).length;
   const total=todayT.length||1;
-  const active=S.goals.filter(g=>g.status==='active').length;
-  const streak=S.settings.streak||0;
+  const active=W().goals.filter(g=>g.status==='active').length;
+  const streak=W().streak||0;
 
   setText('sv-done',done);
   setText('sv-goals',active);
@@ -2001,8 +2067,7 @@ function setTile(id,pct){const e=document.getElementById(id);if(e)e.style.setPro
 // ONE LEVER SAVE
 // ═══════════════════════════════════════════
 function saveLever(){
-  S.settings.leverMining   = document.getElementById('lever-mining').value.trim();
-  S.settings.leverPlatform = document.getElementById('lever-platform').value.trim();
+  W().lever = document.getElementById('lever-focus').value.trim();
   save();
   const s=document.getElementById('lever-saved');
   s.style.display='inline';
@@ -2096,7 +2161,7 @@ function bklog(msg,type=''){
   log.scrollTop=log.scrollHeight;
 }
 function buildJSON(){
-  return JSON.stringify({app:'LifePilot',v:'2.0',ts:new Date().toISOString(),tasks:S.tasks,goals:S.goals,routines:S.routines,journal:S.journal,vision:S.vision},null,2);
+  return JSON.stringify({app:'LifePilot',v:'2.0',ts:new Date().toISOString(),personal:S.personal,vpx1:S.vpx1,settings:S.settings},null,2);
 }
 function exportJSON(){
   const a=document.createElement('a');
@@ -2111,11 +2176,10 @@ function importJSON(ev){
   r.onload=e=>{
     try{
       const d=JSON.parse(e.target.result);
-      if(d.tasks)    S.tasks=d.tasks;
-      if(d.goals)    S.goals=d.goals;
-      if(d.routines) S.routines=d.routines;
-      if(d.journal)  S.journal=d.journal;
-      if(d.vision)   S.vision=d.vision;
+      if(d.personal) S.personal = {...newWorkspace(false),...d.personal};
+      if(d.vpx1)     S.vpx1     = {...newWorkspace(true),...d.vpx1};
+      if(d.tasks && !d.personal) S.personal.tasks = d.tasks;
+      if(d.goals && !d.personal) S.personal.goals = d.goals;
       save();renderAll();bklog('Imported: '+file.name,'ok');toast('Data restored.','ok');
     }catch(err){bklog('Parse error: '+err.message,'err');toast('Invalid JSON.','err');}
   };
