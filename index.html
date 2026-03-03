@@ -977,7 +977,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
         <div class="ph">
           <div>
             <div class="ptitle">Vision <em>Board</em></div>
-            <div class="psub">The why behind everything. Your life architecture.</div>
+            <div class="psub">The why behind everything. Your life architecture. <span style="font-family:'Courier Prime',monospace;font-size:.62rem;letter-spacing:.1em;background:rgba(46,139,80,.1);color:#2e8b50;padding:2px 7px;border-radius:2px;text-transform:uppercase">⇄ Shared across both modes</span></div>
           </div>
           <div class="pacts"><button class="btn btn-ghost btn-sm" onclick="openModal('vision-modal')">Edit Vision</button></div>
         </div>
@@ -1239,34 +1239,12 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
 function newWorkspace(isVpx1){
   if(isVpx1) return {
     tasks:[], goals:[], routines:[], journal:[],
-    vision:{
-      quote:'VPX1 Jordan River — from discovery to production.',
-      areas:[
-        {icon:'⛏',title:'Resource Development',affirm:'VPX1 is advancing methodically toward drill-ready status.'},
-        {icon:'📊',title:'Investor Relations',affirm:'We communicate clearly and build trust with every update.'},
-        {icon:'💻',title:'VBay Platform',affirm:'VBay eliminates information asymmetry in mining finance.'},
-        {icon:'📋',title:'Regulatory & NI 43-101',affirm:'All data has verifiable on-chain provenance.'},
-        {icon:'🤝',title:'Community Value',affirm:'We create prosperity ecosystems for all participants.'},
-        {icon:'🎯',title:'Summer 2026 Drill Program',affirm:'Contractors selected, permits filed, program ready.'},
-      ]
-    },
     energy:null,
     lever:'',
     streak:0, lastDate:'',
   };
   return {
     tasks:[], goals:[], routines:[], journal:[],
-    vision:{
-      quote:'You are not managing a life. You are building a legacy.',
-      areas:[
-        {icon:'👨‍👧',title:'Present Father',affirm:'I am fully present and joyful with my children.'},
-        {icon:'💪',title:'Energy & Health',affirm:'I protect my energy — it is my greatest resource.'},
-        {icon:'🌱',title:'Personal Growth',affirm:'Every day I am wiser, calmer, and more purposeful.'},
-        {icon:'🤝',title:'Relationships',affirm:'I invest in the people who matter most.'},
-        {icon:'📚',title:'Learning & Wisdom',affirm:'I read, reflect, and grow every week.'},
-        {icon:'✨',title:'Joy & Recovery',affirm:'Rest is not a reward — it is the strategy.'},
-      ]
-    },
     energy:null,
     lever:'',
     streak:0, lastDate:'',
@@ -1277,6 +1255,18 @@ let S = {
   mode: 'personal',
   personal: newWorkspace(false),
   vpx1:     newWorkspace(true),
+  // Vision board is SHARED across both modes — one integrated life
+  vision: {
+    quote: 'You are not managing a life. You are building a legacy.',
+    areas: [
+      {icon:'⛏', title:'Mining Legacy',    affirm:'VPX1 Jordan River is advancing toward production.'},
+      {icon:'💻', title:'VBay Platform',    affirm:'VBay democratises mining investment for all.'},
+      {icon:'👨‍👧', title:'Present Father',    affirm:'I am fully present and joyful with my children.'},
+      {icon:'💪', title:'Energy & Health',  affirm:'I protect my energy — it is my greatest resource.'},
+      {icon:'🌱', title:'Personal Growth',  affirm:'Every day I am wiser, calmer, and more purposeful.'},
+      {icon:'🤝', title:'Community',        affirm:'I create prosperity ecosystems that benefit all.'},
+    ]
+  },
   settings: {clientId:'',userName:'',userAvatar:''},
 };
 
@@ -1480,8 +1470,9 @@ function driveAutoLoad(cb){
   .then(d=>{
     if(!d){ setSyncIndicator('idle'); cb(); return; }
     // Merge Drive data — Drive wins over localStorage for content
-    if(d.personal) S.personal = {...newWorkspace(false),...d.personal, vision:{...newWorkspace(false).vision,...(d.personal.vision||{})}};
-    if(d.vpx1)     S.vpx1     = {...newWorkspace(true),...d.vpx1,     vision:{...newWorkspace(true).vision,...(d.vpx1.vision||{})}};
+    if(d.personal) S.personal = {...newWorkspace(false),...d.personal};
+    if(d.vpx1)     S.vpx1     = {...newWorkspace(true),...d.vpx1};
+    if(d.vision)   S.vision   = {...S.vision,...d.vision, areas: d.vision.areas||S.vision.areas};
     // Migrate old flat data if upgrading
     if(d.tasks && !d.personal)    S.personal.tasks    = d.tasks;
     if(d.goals && !d.personal)    S.personal.goals    = d.goals;
@@ -1894,11 +1885,11 @@ function deleteGoal(){
 // ═══════════════════════════════════════════
 function renderVision(){
   const q=document.getElementById('vision-quote');
-  if(q) q.textContent='"'+W().vision.quote+'"';
+  if(q) q.textContent='"'+S.vision.quote+'"';
   const grid=document.getElementById('vision-grid');
   if(!grid)return;
   grid.innerHTML='';
-  W().vision.areas.forEach(a=>{
+  S.vision.areas.forEach(a=>{
     const d=document.createElement('div');
     d.className='vtile';
     d.innerHTML=`<div class="vicon">${a.icon}</div><div class="vtitle">${esc(a.title)}</div><div class="vaff${a.affirm?'':' empty'}">${esc(a.affirm||'Click Edit Vision to add your affirmation…')}</div>`;
@@ -1906,10 +1897,10 @@ function renderVision(){
   });
 }
 function openVisionEditor(){
-  document.getElementById('v-quote').value=W().vision.quote;
+  document.getElementById('v-quote').value=S.vision.quote;
   const f=document.getElementById('v-areas-form');
   f.innerHTML='';
-  W().vision.areas.forEach((a,i)=>{
+  S.vision.areas.forEach((a,i)=>{
     const d=document.createElement('div');
     d.className='fg';
     d.innerHTML=`<label class="flbl">${a.icon} ${a.title}</label><textarea class="field" id="va-${i}" rows="2">${esc(a.affirm)}</textarea>`;
@@ -1918,8 +1909,8 @@ function openVisionEditor(){
   openModal('vision-modal');
 }
 function saveVision(){
-  W().vision.quote=document.getElementById('v-quote').value.trim()||W().vision.quote;
-  W().vision.areas.forEach((a,i)=>{
+  S.vision.quote=document.getElementById('v-quote').value.trim()||S.vision.quote;
+  S.vision.areas.forEach((a,i)=>{
     const el=document.getElementById('va-'+i);
     if(el) a.affirm=el.value.trim();
   });
@@ -2182,7 +2173,7 @@ function bklog(msg,type=''){
   log.scrollTop=log.scrollHeight;
 }
 function buildJSON(){
-  return JSON.stringify({app:'LifePilot',v:'2.0',ts:new Date().toISOString(),personal:S.personal,vpx1:S.vpx1,settings:S.settings},null,2);
+  return JSON.stringify({app:'LifePilot',v:'2.0',ts:new Date().toISOString(),personal:S.personal,vpx1:S.vpx1,vision:S.vision,settings:S.settings},null,2);
 }
 function exportJSON(){
   const a=document.createElement('a');
@@ -2199,6 +2190,7 @@ function importJSON(ev){
       const d=JSON.parse(e.target.result);
       if(d.personal) S.personal = {...newWorkspace(false),...d.personal};
       if(d.vpx1)     S.vpx1     = {...newWorkspace(true),...d.vpx1};
+      if(d.vision)   S.vision   = {...S.vision,...d.vision, areas: d.vision.areas||S.vision.areas};
       if(d.tasks && !d.personal) S.personal.tasks = d.tasks;
       if(d.goals && !d.personal) S.personal.goals = d.goals;
       save();renderAll();bklog('Imported: '+file.name,'ok');toast('Data restored.','ok');
