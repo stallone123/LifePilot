@@ -178,17 +178,19 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
 .topbar{
   position:sticky;top:0;z-index:100;
   background:var(--surf);border-bottom:1px solid var(--border);
-  height:56px;display:flex;align-items:center;padding:0 20px;gap:16px;
+  height:52px;display:flex;align-items:center;padding:0 14px;gap:10px;
   transition:background .45s,border-color .45s;
+  overflow:hidden;
 }
 .topbar-logo{
-  font-family:'Cormorant Garamond',serif;font-size:1.45rem;font-weight:600;
+  font-family:'Cormorant Garamond',serif;font-size:1.35rem;font-weight:600;
   color:var(--text);letter-spacing:.02em;flex-shrink:0;
 }
 .topbar-logo span{color:var(--gold);}
 .topbar-date{
-  font-family:'Courier Prime',monospace;font-size:.62rem;
-  letter-spacing:.1em;color:var(--text3);flex:1;padding-left:18px;
+  font-family:'Courier Prime',monospace;font-size:.58rem;
+  letter-spacing:.08em;color:var(--text3);flex:1;padding-left:10px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 
 /* Mode toggle */
@@ -197,16 +199,17 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   border-radius:3px;overflow:hidden;flex-shrink:0;
 }
 .mtbtn{
-  padding:5px 14px;font-family:'Courier Prime',monospace;font-size:.58rem;
-  letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  padding:5px 12px;font-family:'Courier Prime',monospace;font-size:.58rem;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
   background:transparent;border:none;color:var(--text3);transition:all .3s;
+  white-space:nowrap;
 }
 .mtbtn.on{background:var(--gold);color:var(--nav);font-weight:700;}
 .vpx1 .mtbtn.on{color:#000;}
 
-.topbar-user{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.t-avatar{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--gold);object-fit:cover;display:none;}
-.t-name{font-size:.75rem;color:var(--text3);display:none;}
+.topbar-user{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.t-avatar{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--gold);object-fit:cover;display:none;}
+.t-name{font-size:.72rem;color:var(--text3);display:none;}
 
 /* Layout */
 .shell{
@@ -244,6 +247,12 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   background:rgba(212,168,58,.16);color:var(--gold2);padding:1px 6px;border-radius:2px;
 }
 .vpx1 .nbadge{background:rgba(192,192,212,.1);}
+.mode-label-badge{
+  font-family:'Courier Prime',monospace;font-size:.58rem;letter-spacing:.12em;
+  text-transform:uppercase;padding:3px 8px;border-radius:3px;
+  background:rgba(184,146,42,.15);color:var(--gold2);flex-shrink:0;
+  white-space:nowrap;
+}
 .sync-ind{
   font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.1em;
   color:var(--text3);padding:3px 8px;border-radius:3px;
@@ -260,7 +269,13 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   letter-spacing:.1em;text-transform:uppercase;
   color:rgba(140,120,70,.35);
 }
-.vpx1 .sync-ind{
+.vpx1 .mode-label-badge{
+  font-family:'Courier Prime',monospace;font-size:.58rem;letter-spacing:.12em;
+  text-transform:uppercase;padding:3px 8px;border-radius:3px;
+  background:rgba(184,146,42,.15);color:var(--gold2);flex-shrink:0;
+  white-space:nowrap;
+}
+.sync-ind{
   font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.1em;
   color:var(--text3);padding:3px 8px;border-radius:3px;
   transition:all .3s;white-space:nowrap;
@@ -745,6 +760,12 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
   .ph{flex-direction:column;gap:8px;}
   .pacts{width:100%;}
   .topbar-date{display:none;}
+  .mode-label-badge{display:none;}
+  .t-name{display:none !important;}
+  .sync-ind{display:none;}
+  .topbar{padding:0 10px;gap:8px;}
+  .topbar-logo{font-size:1.15rem;}
+  .mtbtn{padding:5px 10px;font-size:.55rem;letter-spacing:.08em;}
   .sign-box{padding:36px 26px;}
   .sign-title{font-size:3rem;}
   .modal{padding:22px;}
@@ -808,7 +829,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
 
   <div class="topbar">
     <div class="topbar-logo">Life<span>Pilot</span></div>
-  <span id="mode-label" style="font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:3px;background:rgba(184,146,42,.15);color:var(--gold2);flex-shrink:0">⚙ Personal</span>
+  <span id="mode-label" class="mode-label-badge">⚙ Personal</span>
     <div class="topbar-date" id="tdate"></div>
   <span class="sync-ind" id="sync-indicator"></span>
     <div style="flex:1"></div>
@@ -819,7 +840,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
     <div class="topbar-user">
       <img class="t-avatar" id="tavatar" src="" alt="">
       <span class="t-name" id="tname"></span>
-      <button class="btn btn-ghost btn-xs" onclick="signOut()">Out</button>
+      <button class="btn btn-ghost btn-xs" onclick="signOut()" style="padding:4px 8px">↩</button>
     </div>
   </div>
 
@@ -1520,7 +1541,7 @@ function updateModeLabel(){
     lbl.style.background='rgba(184,146,42,0.15)';
     lbl.style.color='var(--gold2)';
   } else {
-    lbl.textContent='◈ VPX1 · Jordan River';
+    lbl.textContent='◈ VPX1';
     lbl.style.background='rgba(192,192,212,0.1)';
     lbl.style.color='var(--gold2)';
   }
