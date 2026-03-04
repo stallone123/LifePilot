@@ -1595,7 +1595,7 @@ function initAndSignIn(cid){
       callback: onToken,
       error_callback: onAuthError,
     });
-    tokenClient.requestAccessToken({prompt: 'consent'});
+    tokenClient.requestAccessToken({prompt: ''});
   } catch(e){
     toast('Google Sign-In failed: ' + e.message, 'err');
     console.error('GSI init error:', e);
