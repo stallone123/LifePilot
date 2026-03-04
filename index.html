@@ -1277,7 +1277,7 @@ let demo  = false;
 let mood  = '';
 let promptIdx = 0;
 
-const SCOPES  = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file';
+const SCOPES  = 'openid profile email https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file';
 const PROMPTS = [
   'What is the most honest thing you can say about today?',
   'What drained you today — and what gave you life?',
@@ -1561,49 +1561,91 @@ function applyMode(m){
 }
 
 // ═══════════════════════════════════════════
-// AUTH
+// AUTH — Google Identity Services token flow
+// Compliant with Google OAuth 2.0 policy (2025+)
 // ═══════════════════════════════════════════
+let tokenClient = null;
+
 function signInGoogle(){
   const cid = document.getElementById('cid').value.trim();
   if(!cid){toast('Enter your Google Client ID, or use Demo Mode.','err');return;}
   S.settings.clientId = cid;
   save();
-  loadGSI(()=>{
-    window.google.accounts.oauth2.initTokenClient({
-      client_id: cid,
-      scope: SCOPES,
-      callback: onToken,
-    }).requestAccessToken();
-  });
+  loadGSI(()=> initAndSignIn(cid));
 }
 
 function loadGSI(cb){
-  if(window.google&&window.google.accounts){cb();return;}
-  const s=document.createElement('script');
-  s.src='https://accounts.google.com/gsi/client';
-  s.onload=cb;
-  s.onerror=()=>toast('Failed to load Google. Check internet connection.','err');
+  if(window.google && window.google.accounts && window.google.accounts.oauth2){
+    cb(); return;
+  }
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.defer = true;
+  s.onload = ()=>{ setTimeout(cb, 100); }; // small delay for GSI to initialise
+  s.onerror = ()=> toast('Failed to load Google Sign-In. Check your internet connection.','err');
   document.head.appendChild(s);
 }
 
-function onToken(r){
-  if(r.error){toast('Google error: '+r.error,'err');return;}
-  token = r.access_token;
-  fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+token}})
-    .then(x=>x.json()).then(u=>{
-      S.settings.userName   = u.name||'Pilot';
-      S.settings.userAvatar = u.picture||'';
-      save();
-      // Load latest data from Drive before showing app
-      driveAutoLoad(()=>launchApp(false));
-    }).catch(()=>{
-      driveAutoLoad(()=>launchApp(false));
+function initAndSignIn(cid){
+  try {
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: cid,
+      scope: SCOPES,
+      callback: onToken,
+      error_callback: onAuthError,
     });
+    tokenClient.requestAccessToken({prompt: 'consent'});
+  } catch(e){
+    toast('Google Sign-In failed: ' + e.message, 'err');
+    console.error('GSI init error:', e);
+  }
+}
+
+function onAuthError(err){
+  console.error('Auth error:', err);
+  if(err.type === 'popup_closed'){
+    toast('Sign-in cancelled. Try again.','err');
+  } else if(err.type === 'popup_failed_to_open'){
+    toast('Popup blocked. Please allow popups for this site.','err');
+  } else {
+    toast('Google error: ' + (err.message || err.type || 'Unknown'), 'err');
+  }
+}
+
+function onToken(r){
+  if(r.error){
+    onAuthError({type: r.error, message: r.error_description});
+    return;
+  }
+  token = r.access_token;
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo',{
+    headers:{Authorization:'Bearer '+token}
+  })
+  .then(x=>x.json())
+  .then(u=>{
+    S.settings.userName   = u.name   || 'Pilot';
+    S.settings.userAvatar = u.picture || '';
+    save();
+    driveAutoLoad(()=>launchApp(false));
+  })
+  .catch(()=>{
+    driveAutoLoad(()=>launchApp(false));
+  });
+}
+
+// Silently refresh the token when it expires (tokens last ~1hr)
+function refreshToken(){
+  if(!tokenClient || !S.settings.clientId) return;
+  tokenClient.requestAccessToken({prompt: ''});
 }
 
 function demoLaunch(){
   demo = true;
   sessionStorage.setItem('lp_demo','1');
+  // Ensure clean workspace state before seeding
+  if(!S.personal) S.personal = newWorkspace(false);
+  if(!S.vpx1)     S.vpx1     = newWorkspace(true);
   seedDemo();
   launchApp(true);
 }
@@ -1642,33 +1684,52 @@ function signOut(){
 // DEMO SEED
 // ═══════════════════════════════════════════
 function seedDemo(){
-  if(S.goals.length===0){
-    S.goals=[
-      {id:uid(),title:'Advance VPX1 to drill-ready status',cat:'mining',status:'active',progress:55,date:'2026-08-01',notes:'Historical data compiled. Need modern geophysics verification.'},
-      {id:uid(),title:'Launch VBay founding member community',cat:'platform',status:'active',progress:70,date:'2026-04-15',notes:'AME RoundUp 2026 deadline. Portal MVP deployed.'},
-      {id:uid(),title:'Daily morning recovery ritual',cat:'health',status:'active',progress:40,date:'2026-06-30',notes:'10 min stretch + sunlight + water before devices.'},
-      {id:uid(),title:'2-4 hr weekly strategic recovery block',cat:'personal',status:'active',progress:30,date:'2026-12-31',notes:'Non-negotiable thinking oxygen. Sunday preferred.'},
-    ];
-  }
-  if(S.tasks.length===0){
-    const t=new Date().toISOString().slice(0,10);
-    S.tasks=[
-      {id:uid(),title:'Review VPX1 geophysical data summary',done:false,date:t,time:'09:00',pri:'h',notes:''},
-      {id:uid(),title:'Morning 10 min stretch ritual',done:true, date:t,time:'07:00',pri:'m',notes:''},
-      {id:uid(),title:'VBay — finalize work package portal UI',done:false,date:t,time:'10:30',pri:'h',notes:''},
-      {id:uid(),title:'Respond to investor inquiries',done:false,date:t,time:'14:00',pri:'m',notes:''},
-    ];
-  }
-  if(S.routines.length===0){
-    S.routines=[
-      {id:uid(),name:'Morning Reset',type:'morning',tasks:['Drink 2 glasses of water','10 min stretch','Sunlight — stand outside 5 min','Review top 3 goals','Set One Lever for today']},
-      {id:uid(),name:'Evening Wind-Down',type:'evening',tasks:['Voice journal — 5 min','Write Done List (3 wins)','No screens after 9 PM','Gratitude — name 3 things','Prep tomorrow\'s priorities']},
-      {id:uid(),name:'Weekly Strategic Recovery',type:'custom',tasks:['Silent walk or nature','Reconnect with WHY of VPX1','Review goals progress','Adjust energy, not just tasks','Journal: what served me this week?']},
-    ];
-  }
-  if(S.settings.energyToday===null) S.settings.energyToday = 6;
-  S.settings.leverMining    = S.settings.leverMining    || 'Finalize investor summary for VPX1 geophysics.';
-  S.settings.leverPlatform  = S.settings.leverPlatform  || 'Ship founding member portal to production.';
+  const t = new Date().toISOString().slice(0,10);
+  // Guard — ensure workspaces exist before seeding
+  if(!S.personal) S.personal = newWorkspace(false);
+  if(!S.vpx1)     S.vpx1     = newWorkspace(true);
+
+  // ── PERSONAL workspace ──
+  const p = S.personal;
+  if(!p.goals || p.goals.length===0) p.goals=[
+    {id:uid(),title:'Daily morning recovery ritual',cat:'health',status:'active',progress:40,date:'2026-06-30',notes:'10 min stretch + sunlight + water before devices.'},
+    {id:uid(),title:'Weekly 3-hr strategic recovery block',cat:'personal',status:'active',progress:30,date:'2026-12-31',notes:'Non-negotiable thinking oxygen. Sunday preferred.'},
+    {id:uid(),title:'Read 12 books this year',cat:'learning',status:'active',progress:25,date:'2026-12-31',notes:'3 done so far.'},
+    {id:uid(),title:'Be fully present with kids daily',cat:'family',status:'active',progress:60,date:'2026-12-31',notes:'Merge parenting with purpose where possible.'},
+  ];
+  if(!p.tasks || p.tasks.length===0) p.tasks=[
+    {id:uid(),title:'Morning 10 min stretch ritual',done:true, date:t,time:'07:00',pri:'m',notes:''},
+    {id:uid(),title:'Read 20 min before bed',done:false,date:t,time:'21:00',pri:'l',notes:''},
+    {id:uid(),title:'Book Sunday recovery block',done:false,date:t,time:'',pri:'h',notes:''},
+  ];
+  if(!p.routines || p.routines.length===0) p.routines=[
+    {id:uid(),name:'Morning Reset',type:'morning',tasks:['Drink 2 glasses of water','10 min stretch','Sunlight — 5 min outside','Review personal goals','Set today\'s One Focus']},
+    {id:uid(),name:'Evening Wind-Down',type:'evening',tasks:['Voice journal — 5 min','Write Done List (3 wins)','No screens after 9 PM','Gratitude — name 3 things','Prep tomorrow']},
+  ];
+  if(!p.lever) p.lever = 'Book Sunday recovery block — protect it.';
+  if(p.energy===null || p.energy===undefined) p.energy = 6;
+
+  // ── VPX1 workspace ──
+  const v = S.vpx1;
+  if(!v.goals || v.goals.length===0) v.goals=[
+    {id:uid(),title:'Advance VPX1 to drill-ready status',cat:'mining',status:'active',progress:55,date:'2026-08-01',notes:'Historical NPV ~$350M CAD. Modern NI 43-101 verification required.'},
+    {id:uid(),title:'Launch VBay founding member community',cat:'platform',status:'active',progress:70,date:'2026-04-15',notes:'AME RoundUp 2026 deadline. Portal MVP deployed.'},
+    {id:uid(),title:'Complete summer 2026 drill program RFPs',cat:'mining',status:'active',progress:45,date:'2026-03-15',notes:'March 15 deadline. 3 contractors shortlisted.'},
+    {id:uid(),title:'NI 43-101 compliant resource estimate',cat:'mining',status:'active',progress:20,date:'2026-12-31',notes:'Requires modern geophysics and drill results.'},
+  ];
+  if(!v.tasks || v.tasks.length===0) v.tasks=[
+    {id:uid(),title:'Review VPX1 geophysical data summary',done:false,date:t,time:'09:00',pri:'h',notes:''},
+    {id:uid(),title:'VBay — finalize work package portal UI',done:false,date:t,time:'10:30',pri:'h',notes:''},
+    {id:uid(),title:'Respond to investor inquiries',done:false,date:t,time:'14:00',pri:'m',notes:''},
+    {id:uid(),title:'Review contractor RFP responses',done:false,date:t,time:'15:00',pri:'h',notes:'March 15 deadline'},
+  ];
+  if(!v.routines || v.routines.length===0) v.routines=[
+    {id:uid(),name:'Project Morning Briefing',type:'morning',tasks:['Check VPX1 project status','Review investor communications','Check VBay platform issues','Set project One Lever for today']},
+    {id:uid(),name:'Weekly Project Review',type:'custom',tasks:['Review drill program progress','Check contractor deliverables','Update investor summary','Review VBay metrics','Reconnect with WHY of VPX1']},
+  ];
+  if(!v.lever) v.lever = 'Finalize investor summary for VPX1 geophysics.';
+  if(v.energy===null || v.energy===undefined) v.energy = 7;
+
   save();
 }
 
