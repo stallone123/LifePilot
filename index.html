@@ -826,7 +826,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
     <div class="sign-eye">Personal Command Center</div>
     <div class="sign-title">Life<em>Pilot</em></div>
     <div class="sign-sub">Command your day. Honour your mission.<br>Sustain the energy to do both.</div>
-    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.2</div>
+    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.3</div>
 
     <div class="sign-mode-row" id="signin-modes">
       <button class="mchip on-p" onclick="setSigninMode('personal')">⚙ Personal</button>
@@ -908,7 +908,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
       <button class="nbtn" data-pg="calendar" onclick="go('calendar')"><span class="nicon">📅</span>Calendar</button>
       <button class="nbtn" data-pg="backup" onclick="go('backup')"><span class="nicon">☁️</span>Backup</button>
 
-      <div class="sfooter">LifePilot <span id="app-version">v2.2.2</span></div>
+      <div class="sfooter">LifePilot <span id="app-version">v2.2.3</span></div>
     </nav>
 
     <div class="main">
@@ -1655,6 +1655,10 @@ function setSigninMode(m){
 }
 
 function setMode(m){
+  console.log('[LP] setMode: switching to '+m+
+    ' | personal.journal='+S.personal.journal.length+
+    ' | vpx1.journal='+S.vpx1.journal.length+
+    ' | same ref='+(S.personal.journal===S.vpx1.journal));
   S.mode = m;
   save();
   applyMode(m);
@@ -2263,6 +2267,8 @@ function renderJournal(){
   const ws=W();
   // Each workspace journal array holds only its own entries - no filter needed
   const journal=(ws&&ws.journal)?ws.journal:[];
+  // Debug: visible in browser console to confirm correct data at render time
+  console.log('[LP] renderJournal mode='+S.mode+' entries='+journal.length, journal.map(e=>e.text&&e.text.slice(0,20)));
   if(!journal.length){el.innerHTML='<div class="empty-msg">No entries yet — begin writing above.</div>';return;}
   journal.slice(0,20).forEach(e=>{
     const d=new Date(e.date);
@@ -2420,7 +2426,8 @@ function buildJSON(){
   const pClean = Object.assign({}, S.personal, {journal:[]});
   const vClean = Object.assign({}, S.vpx1,     {journal:[]});
   return JSON.stringify({
-    app:'LifePilot', v:'2.2', ts:new Date().toISOString(),
+    app:'LifePilot', v:'2.3', ts:new Date().toISOString(),
+    mode:     S.mode,
     personal: pClean,
     vpx1:     vClean,
     personal_journal: S.personal.journal || [],
