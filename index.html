@@ -826,7 +826,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
     <div class="sign-eye">Personal Command Center</div>
     <div class="sign-title">Life<em>Pilot</em></div>
     <div class="sign-sub">Command your day. Honour your mission.<br>Sustain the energy to do both.</div>
-    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.1</div>
+    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.2</div>
 
     <div class="sign-mode-row" id="signin-modes">
       <button class="mchip on-p" onclick="setSigninMode('personal')">⚙ Personal</button>
@@ -908,7 +908,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
       <button class="nbtn" data-pg="calendar" onclick="go('calendar')"><span class="nicon">📅</span>Calendar</button>
       <button class="nbtn" data-pg="backup" onclick="go('backup')"><span class="nicon">☁️</span>Backup</button>
 
-      <div class="sfooter">LifePilot <span id="app-version">v2.2.1</span></div>
+      <div class="sfooter">LifePilot <span id="app-version">v2.2.2</span></div>
     </nav>
 
     <div class="main">
@@ -1058,6 +1058,9 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
           <div>
             <div class="ptitle">Daily <em>Journal</em></div>
             <div class="psub" id="journal-mode-sub">Process. Reflect. Release the weight.</div>
+          </div>
+          <div class="pacts">
+            <button class="btn btn-ghost btn-sm" onclick="clearModeJournal()" id="clear-journal-btn" style="font-size:.65rem;opacity:.7">Clear this mode's entries</button>
           </div>
         </div>
 
@@ -1485,11 +1488,12 @@ function load(){
       if(Array.isArray(d.vpx1_journal)){
         S.vpx1.journal = JSON.parse(JSON.stringify(d.vpx1_journal));
       }
-      // Legacy: split by workspace tag
+      // Legacy (pre-v2.2): no distinct journal keys. Split by explicit workspace tag.
+      // Entries with NO tag are discarded — we cannot know which mode they belong to.
       if(!Array.isArray(d.personal_journal) && !Array.isArray(d.vpx1_journal)){
         const allJ = Array.isArray(d.personal && d.personal.journal)
           ? d.personal.journal : [];
-        S.personal.journal = JSON.parse(JSON.stringify(allJ.filter(e=>e.workspace!=='vpx1')));
+        S.personal.journal = JSON.parse(JSON.stringify(allJ.filter(e=>e.workspace==='personal')));
         S.vpx1.journal     = JSON.parse(JSON.stringify(allJ.filter(e=>e.workspace==='vpx1')));
       }
       // Final guard
@@ -1602,17 +1606,13 @@ function driveAutoLoad(cb){
     if(Array.isArray(d.vpx1_journal)){
       S.vpx1.journal = JSON.parse(JSON.stringify(d.vpx1_journal));
     }
-    // Legacy (pre-v2.2): journals were stored inside personal{} and vpx1{}
-    // and may be identical (shared array bug). Split by workspace tag.
+    // Legacy (pre-v2.2): no distinct journal keys. Split by explicit workspace tag.
+    // Entries with NO tag are discarded — we cannot know which mode they belong to.
     if(!Array.isArray(d.personal_journal) && !Array.isArray(d.vpx1_journal)){
       const allJ = Array.isArray(d.personal && d.personal.journal)
         ? d.personal.journal : [];
-      S.personal.journal = JSON.parse(JSON.stringify(
-        allJ.filter(e => e.workspace !== 'vpx1')
-      ));
-      S.vpx1.journal = JSON.parse(JSON.stringify(
-        allJ.filter(e => e.workspace === 'vpx1')
-      ));
+      S.personal.journal = JSON.parse(JSON.stringify(allJ.filter(e=>e.workspace==='personal')));
+      S.vpx1.journal     = JSON.parse(JSON.stringify(allJ.filter(e=>e.workspace==='vpx1')));
     }
     // Final guard: always ensure journals are independent arrays
     S.personal.journal = JSON.parse(JSON.stringify(S.personal.journal || []));
@@ -2261,13 +2261,8 @@ function renderJournal(){
   if(!el)return;
   el.innerHTML='';
   const ws=W();
-  const allEntries=(ws&&ws.journal)?ws.journal:[];
-  // Filter to only show entries tagged for this mode
-  // Legacy entries (no workspace tag) are shown in personal mode only
-  const journal = allEntries.filter(e=>
-    e.workspace === S.mode ||
-    (!e.workspace && S.mode === 'personal')
-  );
+  // Each workspace journal array holds only its own entries - no filter needed
+  const journal=(ws&&ws.journal)?ws.journal:[];
   if(!journal.length){el.innerHTML='<div class="empty-msg">No entries yet — begin writing above.</div>';return;}
   journal.slice(0,20).forEach(e=>{
     const d=new Date(e.date);
@@ -2290,6 +2285,11 @@ function renderJournal(){
 function delEntry(id){
   const dws=W(); if(dws.journal) dws.journal=dws.journal.filter(x=>x.id!==id);
   save();renderJournal();toast('Entry deleted.','ok');
+}
+function clearModeJournal(){
+  if(!confirm('Delete all journal entries in ' + (S.mode==='vpx1'?'VPX1':'Personal') + ' mode? This cannot be undone.')) return;
+  W().journal=[];
+  save();renderJournal();toast('Journal cleared.','ok');
 }
 
 // ═══════════════════════════════════════════
