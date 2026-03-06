@@ -826,7 +826,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
     <div class="sign-eye">Personal Command Center</div>
     <div class="sign-title">Life<em>Pilot</em></div>
     <div class="sign-sub">Command your day. Honour your mission.<br>Sustain the energy to do both.</div>
-    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.0</div>
+    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.1</div>
 
     <div class="sign-mode-row" id="signin-modes">
       <button class="mchip on-p" onclick="setSigninMode('personal')">⚙ Personal</button>
@@ -908,7 +908,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
       <button class="nbtn" data-pg="calendar" onclick="go('calendar')"><span class="nicon">📅</span>Calendar</button>
       <button class="nbtn" data-pg="backup" onclick="go('backup')"><span class="nicon">☁️</span>Backup</button>
 
-      <div class="sfooter">LifePilot <span id="app-version">v2.2.0</span></div>
+      <div class="sfooter">LifePilot <span id="app-version">v2.2.1</span></div>
     </nav>
 
     <div class="main">
@@ -1463,8 +1463,9 @@ let syncPending  = false;  // true while a Drive write is in flight
 let lastSyncTime = null;   // timestamp of last successful sync
 
 // Save to localStorage immediately, then schedule Drive sync
+// Uses buildJSON() format so personal_journal / vpx1_journal are always distinct
 function save(){
-  localStorage.setItem('lifepilot2', JSON.stringify(S));
+  localStorage.setItem('lifepilot2', buildJSON());
   if(!demo && token) scheduleDriveSync();
 }
 
@@ -1622,8 +1623,8 @@ function driveAutoLoad(cb){
     if(d.goals    && !d.personal) S.personal.goals    = JSON.parse(JSON.stringify(d.goals));
     if(d.routines && !d.personal) S.personal.routines = JSON.parse(JSON.stringify(d.routines));
     if(d.journal  && !d.personal) S.personal.journal  = JSON.parse(JSON.stringify(d.journal));
-    // Preserve local settings
-    localStorage.setItem('lifepilot2', JSON.stringify(S));
+    // Preserve to localStorage using buildJSON format (distinct journal keys)
+    localStorage.setItem('lifepilot2', buildJSON());
     lastSyncTime = new Date();
     setSyncIndicator('saved');
     cb();
