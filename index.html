@@ -826,7 +826,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
     <div class="sign-eye">Personal Command Center</div>
     <div class="sign-title">Life<em>Pilot</em></div>
     <div class="sign-sub">Command your day. Honour your mission.<br>Sustain the energy to do both.</div>
-    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.3</div>
+    <div style="font-family:'Courier Prime',monospace;font-size:.55rem;letter-spacing:.1em;color:var(--text3);margin-top:8px">v2.2.4</div>
 
     <div class="sign-mode-row" id="signin-modes">
       <button class="mchip on-p" onclick="setSigninMode('personal')">⚙ Personal</button>
@@ -908,7 +908,7 @@ input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;}
       <button class="nbtn" data-pg="calendar" onclick="go('calendar')"><span class="nicon">📅</span>Calendar</button>
       <button class="nbtn" data-pg="backup" onclick="go('backup')"><span class="nicon">☁️</span>Backup</button>
 
-      <div class="sfooter">LifePilot <span id="app-version">v2.2.3</span></div>
+      <div class="sfooter">LifePilot <span id="app-version">v2.2.4</span></div>
     </nav>
 
     <div class="main">
@@ -1929,12 +1929,13 @@ document.addEventListener('click', e=>{
 // RENDER ALL
 // ═══════════════════════════════════════════
 function renderAll(){
-  renderTasks();
-  renderGoals();
-  renderRoutines();
-  renderVision();
-  renderJournal();
-  updateStats();
+  // Each renderer is isolated — a crash in one won't prevent others from running
+  try{ renderTasks();    }catch(e){ console.error('[LP] renderTasks error:',e); }
+  try{ renderGoals();   }catch(e){ console.error('[LP] renderGoals error:',e); }
+  try{ renderRoutines();}catch(e){ console.error('[LP] renderRoutines error:',e); }
+  try{ renderVision();  }catch(e){ console.error('[LP] renderVision error:',e); }
+  try{ renderJournal(); }catch(e){ console.error('[LP] renderJournal error:',e); }
+  try{ updateStats();   }catch(e){ console.error('[LP] updateStats error:',e); }
 }
 
 // ═══════════════════════════════════════════
@@ -2077,7 +2078,7 @@ function renderGoals(){
     `;
     grid.appendChild(div);
   });
-  const act=S.goals.filter(g=>g.status==='active').length;
+  const act=(W().goals||[]).filter(g=>g.status==='active').length;
   document.getElementById('b-goals').textContent=act||'';
 }
 function addGoal(){
