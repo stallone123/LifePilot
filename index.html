@@ -203,6 +203,9 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
   background:transparent;border:none;color:var(--text3);transition:all .3s;
   white-space:nowrap;
+  font-variant-ligatures:none;
+  font-feature-settings:'liga' 0,'calt' 0;
+  -webkit-font-feature-settings:'liga' 0,'calt' 0;
 }
 .mtbtn.on{background:var(--gold);color:var(--nav);font-weight:700;}
 .vpx1 .mtbtn.on{color:#000;}
@@ -252,6 +255,9 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   text-transform:uppercase;padding:3px 8px;border-radius:3px;
   background:rgba(184,146,42,.15);color:var(--gold2);flex-shrink:0;
   white-space:nowrap;
+  font-variant-ligatures:none;
+  font-feature-settings:'liga' 0,'calt' 0;
+  -webkit-font-feature-settings:'liga' 0,'calt' 0;
 }
 .sync-ind{
   font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.1em;
@@ -263,6 +269,12 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
 .sync-error{color:var(--red);background:var(--redlt);}
 .sync-loading{color:var(--gold2);animation:pulse 1s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Prevent autocorrect on technical strings like VPX1 */
+.no-ligature{
+  font-variant-ligatures:none;
+  font-feature-settings:'liga' 0,'calt' 0;
+  -webkit-font-feature-settings:'liga' 0,'calt' 0;
+}
 .sfooter{
   margin-top:auto;padding:10px 8px;
   font-family:'Courier Prime',monospace;font-size:.55rem;
@@ -274,6 +286,9 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   text-transform:uppercase;padding:3px 8px;border-radius:3px;
   background:rgba(184,146,42,.15);color:var(--gold2);flex-shrink:0;
   white-space:nowrap;
+  font-variant-ligatures:none;
+  font-feature-settings:'liga' 0,'calt' 0;
+  -webkit-font-feature-settings:'liga' 0,'calt' 0;
 }
 .sync-ind{
   font-family:'Courier Prime',monospace;font-size:.6rem;letter-spacing:.1em;
@@ -285,6 +300,12 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
 .sync-error{color:var(--red);background:var(--redlt);}
 .sync-loading{color:var(--gold2);animation:pulse 1s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Prevent autocorrect on technical strings like VPX1 */
+.no-ligature{
+  font-variant-ligatures:none;
+  font-feature-settings:'liga' 0,'calt' 0;
+  -webkit-font-feature-settings:'liga' 0,'calt' 0;
+}
 .sfooter{color:rgba(120,120,135,.3);}
 
 /* Main */
@@ -370,6 +391,7 @@ textarea.field{resize:vertical;min-height:80px;line-height:1.65;}
   display:flex;align-items:flex-start;gap:11px;
   padding:10px 0;border-bottom:1px solid var(--border);
 }
+.ckrow.carried{border-left:2px solid var(--gold2);padding-left:8px;}
 .ckrow:last-child{border-bottom:none;}
 .ckbox{
   width:17px;height:17px;flex-shrink:0;margin-top:2px;
@@ -1316,7 +1338,58 @@ window.addEventListener('DOMContentLoaded', () => {
   // Journal prompt
   document.getElementById('j-prompt').textContent = PROMPTS[0];
 
-  if (sessionStorage.getItem('lp_demo')) demoLaunch();
+  if (sessionStorage.getItem('lp_demo')){
+    demoLaunch();
+    return;
+  }
+
+  // Restore session from persisted token (survives swipe/refresh)
+  // Token is considered valid for 50 minutes (Google issues 60min tokens)
+  const savedToken = localStorage.getItem('lp_token');
+  const savedTs    = parseInt(localStorage.getItem('lp_token_ts')||'0');
+  const age        = Date.now() - savedTs;
+  if(savedToken && age < 50 * 60 * 1000){
+    token = savedToken;
+    // Restore user display
+    if(S.settings.userName){
+      document.getElementById('gname').textContent = S.settings.userName;
+      document.getElementById('tname').textContent  = S.settings.userName;
+      document.getElementById('tname').style.display = 'block';
+    }
+    if(S.settings.userAvatar){
+      const av = document.getElementById('tavatar');
+      av.src = S.settings.userAvatar;
+      av.style.display = 'block';
+    }
+    driveAutoLoad(()=>launchApp(false));
+  }
+});
+
+// Re-acquire token silently when user returns to tab after being away
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && token && S.settings.clientId){
+    const savedTs = parseInt(localStorage.getItem('lp_token_ts')||'0');
+    const age = Date.now() - savedTs;
+    // Silently refresh if token is older than 45 minutes
+    if(age > 45 * 60 * 1000){
+      loadGSI(()=>{
+        try{
+          window.google.accounts.oauth2.initTokenClient({
+            client_id: S.settings.clientId,
+            scope: SCOPES,
+            callback: (r)=>{
+              if(!r.error){
+                token = r.access_token;
+                localStorage.setItem('lp_token', token);
+                localStorage.setItem('lp_token_ts', Date.now().toString());
+              }
+            },
+            error_callback: ()=>{},
+          }).requestAccessToken({prompt:''});
+        }catch(e){}
+      });
+    }
+  }
 });
 
 function localISO(d){
@@ -1619,6 +1692,10 @@ function onToken(r){
     return;
   }
   token = r.access_token;
+  // Persist token so page refresh/swipe doesn't log out
+  // Token expires in ~1hr but we refresh silently on focus
+  localStorage.setItem('lp_token', token);
+  localStorage.setItem('lp_token_ts', Date.now().toString());
   fetch('https://www.googleapis.com/oauth2/v3/userinfo',{
     headers:{Authorization:'Bearer '+token}
   })
@@ -1674,6 +1751,8 @@ function launchApp(isDemo){
 function signOut(){
   token=null;demo=false;
   sessionStorage.removeItem('lp_demo');
+  localStorage.removeItem('lp_token');
+  localStorage.removeItem('lp_token_ts');
   document.getElementById('app').style.display='none';
   document.getElementById('signin').style.display='flex';
   document.getElementById('tavatar').style.display='none';
@@ -1824,15 +1903,25 @@ function renderTasks(){
   const today = new Date().toISOString().slice(0,10);
   const list  = document.getElementById('today-list');
   if(!list) return;
-  const tasks = W().tasks.filter(t=>t.date===today);
+  const allTasks = W().tasks || [];
+  // Show: all incomplete tasks from any date + today's completed tasks
+  // This ensures unfinished tasks carry forward automatically
+  const tasks = allTasks.filter(t => !t.done || t.date === today);
+  // Sort: incomplete first (oldest first), then completed
+  tasks.sort((a,b)=>{
+    if(a.done !== b.done) return a.done ? 1 : -1;
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+  });
   list.innerHTML='';
   if(!tasks.length){list.innerHTML='<li class="empty-msg">No tasks yet — add one below.</li>';return;}
   tasks.forEach(t=>{
+    const isOld = t.date < today && !t.done;
     const li=document.createElement('li');
-    li.className='ckrow'+(t.done?' done':'');
+    li.className='ckrow'+(t.done?' done':'')+(isOld?' carried':'');
     li.innerHTML=`
       <div class="ckbox" onclick="toggleTask('${t.id}')">${t.done?'✓':''}</div>
       <div class="cklbl" onclick="toggleTask('${t.id}')">${esc(t.title)}
+        ${isOld?`<div style="font-size:.65rem;color:var(--gold2);margin-top:1px;letter-spacing:.05em">↩ carried forward from ${t.date}</div>`:''}
         ${t.notes?`<div style="font-size:.72rem;color:var(--text3);margin-top:2px;font-weight:300">${esc(t.notes)}</div>`:''}
       </div>
       <div class="ckmeta">
@@ -1946,14 +2035,19 @@ function deleteGoal(){
 // ═══════════════════════════════════════════
 function renderVision(){
   const q=document.getElementById('vision-quote');
-  if(q) q.textContent='"'+S.vision.quote+'"';
+  if(q) q.textContent='"'+(S.vision&&S.vision.quote ? S.vision.quote : 'You are not managing a life. You are building a legacy.')+'"';
   const grid=document.getElementById('vision-grid');
   if(!grid)return;
   grid.innerHTML='';
-  S.vision.areas.forEach(a=>{
+  const areas = (S.vision&&S.vision.areas) ? S.vision.areas : [];
+  if(!areas.length){
+    grid.innerHTML='<div class="empty-msg">Click Edit Vision to set up your vision board.</div>';
+    return;
+  }
+  areas.forEach(a=>{
     const d=document.createElement('div');
     d.className='vtile';
-    d.innerHTML=`<div class="vicon">${a.icon}</div><div class="vtitle">${esc(a.title)}</div><div class="vaff${a.affirm?'':' empty'}">${esc(a.affirm||'Click Edit Vision to add your affirmation…')}</div>`;
+    d.innerHTML=`<div class="vicon">${a.icon||'✦'}</div><div class="vtitle">${esc(a.title)}</div><div class="vaff${a.affirm?'':' empty'}">${esc(a.affirm||'Add your affirmation…')}</div>`;
     grid.appendChild(d);
   });
 }
@@ -2077,7 +2171,8 @@ function saveEntry(){
   const text=document.getElementById('j-text').value.trim();
   if(!text){toast('Write something first.','err');return;}
   const done=document.getElementById('j-done').value.trim();
-  W().journal.unshift({id:uid(),date:new Date().toISOString(),text,mood,done,prompt:PROMPTS[promptIdx]});
+  const ws=W(); if(!ws.journal) ws.journal=[];
+  ws.journal.unshift({id:uid(),date:new Date().toISOString(),text,mood,done,prompt:PROMPTS[promptIdx]});
   document.getElementById('j-text').value='';
   document.getElementById('j-done').value='';
   mood='';
@@ -2088,8 +2183,10 @@ function renderJournal(){
   const el=document.getElementById('j-entries');
   if(!el)return;
   el.innerHTML='';
-  if(!W().journal.length){el.innerHTML='<div class="empty-msg">No entries yet. Begin writing above.</div>';return;}
-  W().journal.slice(0,20).forEach(e=>{
+  const ws=W();
+  const journal=(ws&&ws.journal)?ws.journal:[];
+  if(!journal.length){el.innerHTML='<div class="empty-msg">No entries yet. Begin writing above.</div>';return;}
+  journal.slice(0,20).forEach(e=>{
     const d=new Date(e.date);
     const ds=d.toLocaleDateString('en-CA',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
     const div=document.createElement('div');
@@ -2108,7 +2205,7 @@ function renderJournal(){
   });
 }
 function delEntry(id){
-  W().journal=W().journal.filter(x=>x.id!==id);
+  const dws=W(); if(dws.journal) dws.journal=dws.journal.filter(x=>x.id!==id);
   save();renderJournal();toast('Entry deleted.','ok');
 }
 
